@@ -86,6 +86,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ userId, token, onTran
 
         <div className="form-group">
           <label htmlFor="authHeader">Authorization Header (customizable)</label>
+          {/* Note: This is for educational/testing purposes only. 
+              In production, auth tokens should be managed securely without user modification. */}
           <input
             type="text"
             id="authHeader"

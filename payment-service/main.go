@@ -129,6 +129,7 @@ func (s *PaymentService) GetTransactions(w http.ResponseWriter, r *http.Request)
 	for rows.Next() {
 		var t Transaction
 		if err := rows.Scan(&t.ID, &t.UserID, &t.Amount, &t.Description, &t.IsPaid, &t.CreatedAt); err != nil {
+			log.Printf("Error scanning transaction row: %v", err)
 			continue
 		}
 		transactions = append(transactions, t)

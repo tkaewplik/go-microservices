@@ -50,8 +50,9 @@ func (g *Gateway) ProxyRequest(target *url.URL) http.HandlerFunc {
 		// Error handler
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("Proxy error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte("Service unavailable"))
+			w.Write([]byte(`{"error":"Service unavailable"}`))
 		}
 
 		proxy.ServeHTTP(w, r)
