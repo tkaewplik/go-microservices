@@ -193,7 +193,7 @@ func initDB(db *sql.DB) error {
 func main() {
 	dbConfig := database.Config{
 		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     5432,
+		Port:     getEnvInt("DB_PORT", 5432),
 		User:     getEnv("DB_USER", "postgres"),
 		Password: getEnv("DB_PASSWORD", "postgres"),
 		DBName:   getEnv("DB_NAME", "paymentdb"),
@@ -218,16 +218,23 @@ func main() {
 	mux.HandleFunc("/transactions/list", authMiddleware.Authenticate(service.GetTransactions))
 	mux.HandleFunc("/transactions/pay", authMiddleware.Authenticate(service.PayAllTransactions))
 
-	handler := middleware.CORS(mux)
-
 	port := getEnv("PORT", "8082")
 	log.Printf("Payment service starting on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, handler))
+	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
 	}
 	return defaultValue
 }

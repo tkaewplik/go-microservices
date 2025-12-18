@@ -78,6 +78,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ userId, token, refres
 
   useEffect(() => {
     fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);

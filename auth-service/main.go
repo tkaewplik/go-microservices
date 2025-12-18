@@ -6,10 +6,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/tkaewplik/go-microservices/pkg/database"
 	"github.com/tkaewplik/go-microservices/pkg/jwt"
-	"github.com/tkaewplik/go-microservices/pkg/middleware"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -116,7 +116,7 @@ func initDB(db *sql.DB) error {
 func main() {
 	dbConfig := database.Config{
 		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     5432,
+		Port:     getEnvInt("DB_PORT", 5432),
 		User:     getEnv("DB_USER", "postgres"),
 		Password: getEnv("DB_PASSWORD", "postgres"),
 		DBName:   getEnv("DB_NAME", "authdb"),
@@ -139,16 +139,23 @@ func main() {
 	mux.HandleFunc("/register", service.Register)
 	mux.HandleFunc("/login", service.Login)
 
-	handler := middleware.CORS(mux)
-
 	port := getEnv("PORT", "8081")
 	log.Printf("Auth service starting on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, handler))
+	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
 	}
 	return defaultValue
 }
