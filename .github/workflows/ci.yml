@@ -115,24 +115,24 @@ jobs:
 
       - name: Create bin directory
         run: mkdir -p bin
-        
+
       - name: Build auth-service
         run: |
           cd auth-service
-          go mod download
-          CGO_ENABLED=0 go build -o ../bin/auth-service ./...
+          go mod tidy
+          CGO_ENABLED=0 go build -o ../bin/auth-service ./*.go
 
       - name: Build payment-service
         run: |
           cd payment-service
           go mod download
-          CGO_ENABLED=0 go build -o ../bin/payment-service ./...
+          CGO_ENABLED=0 go build -o ../bin/payment-service ./*.go
 
       - name: Build gateway
         run: |
           cd gateway
           go mod download
-          CGO_ENABLED=0 go build -o ../bin/gateway ./...
+          CGO_ENABLED=0 go build -o ../bin/gateway ./*.go
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
