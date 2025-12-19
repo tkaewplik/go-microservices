@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/tkaewplik/go-microservices/payment-service/internal/handler"
+	"github.com/tkaewplik/go-microservices/payment-service/internal/kafka"
 	"github.com/tkaewplik/go-microservices/payment-service/internal/repository"
 	"github.com/tkaewplik/go-microservices/payment-service/internal/service"
 	"github.com/tkaewplik/go-microservices/pkg/database"
@@ -41,9 +43,25 @@ func main() {
 		}
 	}()
 
+	// Initialize Kafka publisher
+	kafkaBrokers := getEnv("KAFKA_BROKERS", "localhost:9092")
+	kafkaTopic := getEnv("KAFKA_TOPIC", "transactions")
+
+	kafkaCfg := kafka.Config{
+		Brokers: strings.Split(kafkaBrokers, ","),
+		Topic:   kafkaTopic,
+	}
+
+	publisher := kafka.NewPublisher(kafkaCfg, logger)
+	defer func() {
+		if err := publisher.Close(); err != nil {
+			logger.Error("failed to close Kafka publisher", "error", err)
+		}
+	}()
+
 	// Initialize layers
 	txRepo := repository.NewPostgresTransactionRepository(db)
-	paymentService := service.NewPaymentService(txRepo)
+	paymentService := service.NewPaymentService(txRepo, publisher)
 	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
 
 	// Setup middleware
@@ -58,7 +76,11 @@ func main() {
 
 	// Start server
 	port := getEnv("PORT", "8082")
-	logger.Info("payment service starting", "port", port)
+	logger.Info("payment service starting",
+		"port", port,
+		"kafka_brokers", kafkaBrokers,
+		"kafka_topic", kafkaTopic,
+	)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		logger.Error("server failed", "error", err)
 		os.Exit(1)

@@ -19,12 +19,16 @@ var (
 
 // PaymentService handles payment business logic
 type PaymentService struct {
-	txRepo domain.TransactionRepository
+	txRepo    domain.TransactionRepository
+	publisher domain.EventPublisher
 }
 
 // NewPaymentService creates a new PaymentService
-func NewPaymentService(txRepo domain.TransactionRepository) *PaymentService {
-	return &PaymentService{txRepo: txRepo}
+func NewPaymentService(txRepo domain.TransactionRepository, publisher domain.EventPublisher) *PaymentService {
+	return &PaymentService{
+		txRepo:    txRepo,
+		publisher: publisher,
+	}
 }
 
 // CreateTransaction creates a new transaction with validation
@@ -61,6 +65,22 @@ func (s *PaymentService) CreateTransaction(ctx context.Context, req *domain.Crea
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
+	// Publish event to Kafka (non-blocking, log errors but don't fail the request)
+	if s.publisher != nil {
+		go func() {
+			event := &domain.TransactionCreatedEvent{
+				TransactionID: createdTx.ID,
+				UserID:        createdTx.UserID,
+				Amount:        createdTx.Amount,
+				Description:   createdTx.Description,
+			}
+			if err := s.publisher.PublishTransactionCreated(context.Background(), event); err != nil {
+				// Log error but don't fail the transaction
+				fmt.Printf("failed to publish transaction.created event: %v\n", err)
+			}
+		}()
+	}
+
 	return createdTx, nil
 }
 
@@ -92,6 +112,19 @@ func (s *PaymentService) PayAllTransactions(ctx context.Context, userID int) (in
 	rowsAffected, err := s.txRepo.MarkAllAsPaid(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to pay transactions: %w", err)
+	}
+
+	// Publish event to Kafka (non-blocking)
+	if s.publisher != nil && rowsAffected > 0 {
+		go func() {
+			event := &domain.TransactionPaidEvent{
+				UserID:           userID,
+				TransactionsPaid: rowsAffected,
+			}
+			if err := s.publisher.PublishTransactionPaid(context.Background(), event); err != nil {
+				fmt.Printf("failed to publish transaction.paid event: %v\n", err)
+			}
+		}()
 	}
 
 	return rowsAffected, nil
