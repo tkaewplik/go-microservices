@@ -3,10 +3,11 @@
 A simple tutorial for building a full-stack microservices application with Go backend services and React frontend.
 
 ## Tasks
-- [ ] Write a scalable and maintainable codebase
+- [ ] Write a scalable and maintainable codebase (write services and repositories)
 - [ ] Implement proper error handling and logging
 - [ ] Add unit tests for critical functionality
 - [ ] Add rabbitMq and Kafka
+- [ ] Add github actions for CI/CD
 
 ## Architecture
 
