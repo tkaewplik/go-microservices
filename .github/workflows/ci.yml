@@ -113,6 +113,9 @@ jobs:
             gateway/go.sum
             pkg/go.sum
 
+      - name: Create bin directory
+        run: mkdir -p bin
+        
       - name: Build auth-service
         run: |
           cd auth-service
