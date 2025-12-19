@@ -74,9 +74,44 @@ func (m *MockTransactionRepository) MarkAllAsPaid(ctx context.Context, userID in
 	return count, nil
 }
 
+// MockEventPublisher is a mock implementation of EventPublisher for testing
+type MockEventPublisher struct {
+	createdEvents []domain.TransactionCreatedEvent
+	paidEvents    []domain.TransactionPaidEvent
+	publishErr    error
+}
+
+func NewMockEventPublisher() *MockEventPublisher {
+	return &MockEventPublisher{
+		createdEvents: []domain.TransactionCreatedEvent{},
+		paidEvents:    []domain.TransactionPaidEvent{},
+	}
+}
+
+func (m *MockEventPublisher) PublishTransactionCreated(ctx context.Context, event *domain.TransactionCreatedEvent) error {
+	if m.publishErr != nil {
+		return m.publishErr
+	}
+	m.createdEvents = append(m.createdEvents, *event)
+	return nil
+}
+
+func (m *MockEventPublisher) PublishTransactionPaid(ctx context.Context, event *domain.TransactionPaidEvent) error {
+	if m.publishErr != nil {
+		return m.publishErr
+	}
+	m.paidEvents = append(m.paidEvents, *event)
+	return nil
+}
+
+func (m *MockEventPublisher) Close() error {
+	return nil
+}
+
 func TestPaymentService_CreateTransaction_Success(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	req := &domain.CreateTransactionRequest{
 		UserID:      1,
@@ -99,7 +134,8 @@ func TestPaymentService_CreateTransaction_Success(t *testing.T) {
 
 func TestPaymentService_CreateTransaction_InvalidAmount(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	req := &domain.CreateTransactionRequest{
 		UserID:      1,
@@ -115,7 +151,8 @@ func TestPaymentService_CreateTransaction_InvalidAmount(t *testing.T) {
 
 func TestPaymentService_CreateTransaction_NegativeAmount(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	req := &domain.CreateTransactionRequest{
 		UserID:      1,
@@ -131,7 +168,8 @@ func TestPaymentService_CreateTransaction_NegativeAmount(t *testing.T) {
 
 func TestPaymentService_CreateTransaction_ExceedsMaximum(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	// Create first transaction close to limit
 	req1 := &domain.CreateTransactionRequest{
@@ -158,7 +196,8 @@ func TestPaymentService_CreateTransaction_ExceedsMaximum(t *testing.T) {
 
 func TestPaymentService_CreateTransaction_ExactlyAtMaximum(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	// Create transaction exactly at limit
 	req := &domain.CreateTransactionRequest{
@@ -176,9 +215,31 @@ func TestPaymentService_CreateTransaction_ExactlyAtMaximum(t *testing.T) {
 	}
 }
 
+func TestPaymentService_CreateTransaction_NilPublisher(t *testing.T) {
+	repo := NewMockTransactionRepository()
+	// Test with nil publisher - should still work
+	svc := NewPaymentService(repo, nil)
+
+	req := &domain.CreateTransactionRequest{
+		UserID:      1,
+		Amount:      100,
+		Description: "Test with nil publisher",
+	}
+
+	tx, err := svc.CreateTransaction(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error with nil publisher, got %v", err)
+	}
+
+	if tx.ID != 1 {
+		t.Errorf("expected ID 1, got %d", tx.ID)
+	}
+}
+
 func TestPaymentService_GetTransactions_Success(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	// Create a transaction
 	req := &domain.CreateTransactionRequest{
@@ -200,7 +261,8 @@ func TestPaymentService_GetTransactions_Success(t *testing.T) {
 
 func TestPaymentService_GetTransactions_EmptyList(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	transactions, err := svc.GetTransactions(context.Background(), 1)
 	if err != nil {
@@ -217,7 +279,8 @@ func TestPaymentService_GetTransactions_EmptyList(t *testing.T) {
 
 func TestPaymentService_PayAllTransactions_Success(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	// Create two transactions
 	for i := 0; i < 2; i++ {
@@ -241,7 +304,8 @@ func TestPaymentService_PayAllTransactions_Success(t *testing.T) {
 
 func TestPaymentService_InvalidUserID(t *testing.T) {
 	repo := NewMockTransactionRepository()
-	svc := NewPaymentService(repo)
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
 
 	req := &domain.CreateTransactionRequest{
 		UserID:      0,
@@ -250,6 +314,28 @@ func TestPaymentService_InvalidUserID(t *testing.T) {
 	}
 
 	_, err := svc.CreateTransaction(context.Background(), req)
+	if !errors.Is(err, ErrInvalidUserID) {
+		t.Errorf("expected ErrInvalidUserID, got %v", err)
+	}
+}
+
+func TestPaymentService_GetTransactions_InvalidUserID(t *testing.T) {
+	repo := NewMockTransactionRepository()
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
+
+	_, err := svc.GetTransactions(context.Background(), 0)
+	if !errors.Is(err, ErrInvalidUserID) {
+		t.Errorf("expected ErrInvalidUserID, got %v", err)
+	}
+}
+
+func TestPaymentService_PayAllTransactions_InvalidUserID(t *testing.T) {
+	repo := NewMockTransactionRepository()
+	publisher := NewMockEventPublisher()
+	svc := NewPaymentService(repo, publisher)
+
+	_, err := svc.PayAllTransactions(context.Background(), -1)
 	if !errors.Is(err, ErrInvalidUserID) {
 		t.Errorf("expected ErrInvalidUserID, got %v", err)
 	}
