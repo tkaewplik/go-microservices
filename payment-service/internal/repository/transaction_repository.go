@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/tkaewplik/go-microservices/payment-service/internal/domain"
 )
@@ -46,7 +47,11 @@ func (r *PostgresTransactionRepository) FindByUserID(ctx context.Context, userID
 	if err != nil {
 		return nil, fmt.Errorf("failed to query transactions: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("failed to close rows: %v", err)
+		}
+	}()
 
 	var transactions []domain.Transaction
 	for rows.Next() {

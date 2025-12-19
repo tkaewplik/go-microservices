@@ -37,7 +37,7 @@ func NewGateway(authURL, paymentURL string) (*Gateway, error) {
 func (g *Gateway) ProxyRequest(target *url.URL) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		proxy := httputil.NewSingleHostReverseProxy(target)
-		
+
 		// Customize director to preserve headers and path
 		director := proxy.Director
 		proxy.Director = func(req *http.Request) {
@@ -52,7 +52,9 @@ func (g *Gateway) ProxyRequest(target *url.URL) http.HandlerFunc {
 			log.Printf("Proxy error: %v", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte(`{"error":"Service unavailable"}`))
+			if _, err := w.Write([]byte(`{"error":"Service unavailable"}`)); err != nil {
+				log.Printf("Failed to write response: %v", err)
+			}
 		}
 
 		proxy.ServeHTTP(w, r)
@@ -80,7 +82,9 @@ func (g *Gateway) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	if path == "/health" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, `{"status":"ok"}`)
+		if _, err := io.WriteString(w, `{"status":"ok"}`); err != nil {
+			log.Printf("Failed to write response: %v", err)
+		}
 		return
 	}
 

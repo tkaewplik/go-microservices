@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -23,7 +24,9 @@ func (m *AuthMiddleware) Authenticate(next http.HandlerFunc) http.HandlerFunc {
 		if authHeader == "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "authorization header required"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": "authorization header required"}); err != nil {
+				log.Printf("Failed to encode response: %v", err)
+			}
 			return
 		}
 
@@ -31,7 +34,9 @@ func (m *AuthMiddleware) Authenticate(next http.HandlerFunc) http.HandlerFunc {
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "invalid authorization header format"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid authorization header format"}); err != nil {
+				log.Printf("Failed to encode response: %v", err)
+			}
 			return
 		}
 
@@ -39,7 +44,9 @@ func (m *AuthMiddleware) Authenticate(next http.HandlerFunc) http.HandlerFunc {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"error": "invalid token"})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": "invalid token"}); err != nil {
+				log.Printf("Failed to encode response: %v", err)
+			}
 			return
 		}
 
