@@ -20,3 +20,20 @@ migrate-payment-down:
 migrate-up: migrate-auth-up migrate-payment-up
 
 migrate-down: migrate-auth-down migrate-payment-down
+
+.PHONY: lint lint-auth lint-payment lint-gateway lint-pkg
+
+lint: lint-auth lint-payment lint-gateway lint-pkg
+	@echo "All lint checks passed"
+
+lint-auth:
+	cd auth-service && golangci-lint run
+
+lint-payment:
+	cd payment-service && golangci-lint run
+
+lint-gateway:
+	cd gateway && golangci-lint run
+
+lint-pkg:
+	cd pkg && golangci-lint run
