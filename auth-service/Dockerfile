@@ -1,18 +1,17 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 # Copy go mod files
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod tidy
 
 # Copy source code
-COPY pkg/ ./pkg/
-COPY auth-service/ ./auth-service/
+COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o /auth-service ./auth-service
+RUN CGO_ENABLED=0 GOOS=linux go build -o auth-service ./*.go
 
 # Runtime stage
 FROM alpine:latest

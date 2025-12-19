@@ -14,7 +14,7 @@ services:
     volumes:
       - auth-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -32,7 +32,7 @@ services:
     volumes:
       - payment-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,8 +40,8 @@ services:
   # Auth Service
   auth-service:
     build:
-      context: .
-      dockerfile: auth-service/Dockerfile
+      context: auth-service/.
+      dockerfile: Dockerfile
     container_name: auth-service
     environment:
       DB_HOST: auth-db
@@ -61,8 +61,8 @@ services:
   # Payment Service
   payment-service:
     build:
-      context: .
-      dockerfile: payment-service/Dockerfile
+      context: payment-service/.
+      dockerfile: Dockerfile
     container_name: payment-service
     environment:
       DB_HOST: payment-db
@@ -82,8 +82,8 @@ services:
   # API Gateway
   gateway:
     build:
-      context: .
-      dockerfile: gateway/Dockerfile
+      context: gateway/.
+      dockerfile: Dockerfile
     container_name: gateway
     environment:
       AUTH_SERVICE_URL: http://auth-service:8081

@@ -1,18 +1,17 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 # Copy go mod files
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod tidy
 
 # Copy source code
-COPY pkg/ ./pkg/
-COPY gateway/ ./gateway/
+COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o /gateway ./gateway
+RUN CGO_ENABLED=0 GOOS=linux go build -o gateway ./*.go
 
 # Runtime stage
 FROM alpine:latest
