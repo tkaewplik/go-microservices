@@ -1,107 +1,25 @@
 package main
 
 import (
-	"database/sql"
-	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/tkaewplik/go-microservices/auth-service/internal/handler"
+	"github.com/tkaewplik/go-microservices/auth-service/internal/repository"
+	"github.com/tkaewplik/go-microservices/auth-service/internal/service"
 	"github.com/tkaewplik/go-microservices/pkg/database"
-	"github.com/tkaewplik/go-microservices/pkg/jwt"
-	"golang.org/x/crypto/bcrypt"
 )
 
-type User struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password,omitempty"`
-}
-
-type AuthService struct {
-	db        *sql.DB
-	secretKey string
-}
-
-func NewAuthService(db *sql.DB, secretKey string) *AuthService {
-	return &AuthService{db: db, secretKey: secretKey}
-}
-
-func (s *AuthService) Register(w http.ResponseWriter, r *http.Request) {
-	var user User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, "error hashing password", http.StatusInternalServerError)
-		return
-	}
-
-	var userID int
-	err = s.db.QueryRow("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id",
-		user.Username, string(hashedPassword)).Scan(&userID)
-	if err != nil {
-		http.Error(w, "error creating user", http.StatusInternalServerError)
-		return
-	}
-
-	token, err := jwt.GenerateToken(userID, user.Username, s.secretKey)
-	if err != nil {
-		http.Error(w, "error generating token", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":       userID,
-		"username": user.Username,
-		"token":    token,
-	})
-}
-
-func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
-	var credentials User
-	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	var user User
-	err := s.db.QueryRow("SELECT id, username, password FROM users WHERE username = $1",
-		credentials.Username).Scan(&user.ID, &user.Username, &user.Password)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "invalid credentials", http.StatusUnauthorized)
-			return
-		}
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
-		return
-	}
-
-	token, err := jwt.GenerateToken(user.ID, user.Username, s.secretKey)
-	if err != nil {
-		http.Error(w, "error generating token", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":       user.ID,
-		"username": user.Username,
-		"token":    token,
-	})
-}
-
 func main() {
+	// Setup structured logger
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
+	// Database configuration
 	dbConfig := database.Config{
 		Host:     getEnv("DB_HOST", "localhost"),
 		Port:     getEnvInt("DB_PORT", 5432),
@@ -110,22 +28,32 @@ func main() {
 		DBName:   getEnv("DB_NAME", "authdb"),
 	}
 
+	// Connect to database
 	db, err := database.Connect(dbConfig)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
+	// Initialize layers
+	userRepo := repository.NewPostgresUserRepository(db)
 	secretKey := getEnv("JWT_SECRET", "your-secret-key")
-	service := NewAuthService(db, secretKey)
+	authService := service.NewAuthService(userRepo, secretKey)
+	authHandler := handler.NewAuthHandler(authService, logger)
 
+	// Setup routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/register", service.Register)
-	mux.HandleFunc("/login", service.Login)
+	mux.HandleFunc("/register", authHandler.Register)
+	mux.HandleFunc("/login", authHandler.Login)
 
+	// Start server
 	port := getEnv("PORT", "8081")
-	log.Printf("Auth service starting on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	logger.Info("auth service starting", "port", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		logger.Error("server failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func getEnv(key, defaultValue string) string {
