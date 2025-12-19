@@ -31,7 +31,10 @@ func NewRabbitMQ(cfg RabbitMQConfig, logger *slog.Logger) (*RabbitMQ, error) {
 
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		err := conn.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to close connection: %w", err)
+		}
 		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
 
@@ -125,11 +128,17 @@ func (r *RabbitMQ) Consume(queueName string, handler MessageHandler) error {
 
 			if err := handler(msg.Body); err != nil {
 				r.logger.Error("failed to handle message", "error", err, "queue", queueName)
-				msg.Nack(false, true) // requeue on failure
+				err := msg.Nack(false, true) // requeue on failure
+				if err != nil {
+					r.logger.Error("failed to nack message", "error", err, "queue", queueName)
+				}
 				continue
 			}
 
-			msg.Ack(false)
+			err := msg.Ack(false)
+			if err != nil {
+				r.logger.Error("failed to ack message", "error", err, "queue", queueName)
+			}
 		}
 	}()
 
