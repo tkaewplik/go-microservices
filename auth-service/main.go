@@ -101,18 +101,6 @@ func (s *AuthService) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func initDB(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
-			username VARCHAR(255) UNIQUE NOT NULL,
-			password VARCHAR(255) NOT NULL,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	return err
-}
-
 func main() {
 	dbConfig := database.Config{
 		Host:     getEnv("DB_HOST", "localhost"),
@@ -127,10 +115,6 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
-
-	if err := initDB(db); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
 
 	secretKey := getEnv("JWT_SECRET", "your-secret-key")
 	service := NewAuthService(db, secretKey)

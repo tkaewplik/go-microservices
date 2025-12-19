@@ -177,20 +177,6 @@ func (s *PaymentService) PayAllTransactions(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-func initDB(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS transactions (
-			id SERIAL PRIMARY KEY,
-			user_id INTEGER NOT NULL,
-			amount DECIMAL(10, 2) NOT NULL,
-			description TEXT,
-			is_paid BOOLEAN DEFAULT false,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	return err
-}
-
 func main() {
 	dbConfig := database.Config{
 		Host:     getEnv("DB_HOST", "localhost"),
@@ -205,10 +191,6 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
-
-	if err := initDB(db); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
 
 	secretKey := getEnv("JWT_SECRET", "your-secret-key")
 	service := NewPaymentService(db, secretKey)

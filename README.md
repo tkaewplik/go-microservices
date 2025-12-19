@@ -57,13 +57,18 @@ cd go-microservices
 docker-compose up -d
 ```
 
-3. Access the application:
+3. Migrate the database:
+```bash
+make migrate-up
+```
+
+4. Access the application:
 - Frontend: http://localhost:3000
 - API Gateway: http://localhost:8080
 - Auth Service: http://localhost:8081
 - Payment Service: http://localhost:8082
 
-4. Stop all services:
+5. Stop all services:
 ```bash
 docker-compose down
 ```
