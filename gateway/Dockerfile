@@ -3,15 +3,16 @@ FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod tidy
+# Copy pkg module first (needed for replace directive)
+COPY pkg/ ./pkg/
 
-# Copy source code
-COPY . .
+# Copy service code
+COPY gateway/ ./gateway/
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o gateway ./*.go
+# Build from the service directory
+WORKDIR /app/gateway
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o /gateway ./*.go
 
 # Runtime stage
 FROM alpine:latest
