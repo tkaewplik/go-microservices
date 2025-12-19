@@ -37,3 +37,10 @@ lint-gateway:
 
 lint-pkg:
 	cd pkg && golangci-lint run
+
+test:
+	cd auth-service && go test ./... -v
+	cd payment-service && go test ./... -v
+	cd gateway && go test ./... -v
+	cd analytics-service && go test ./... -v
+	
