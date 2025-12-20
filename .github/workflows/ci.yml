@@ -69,6 +69,7 @@ jobs:
             payment-service/go.sum
             gateway/go.sum
             pkg/go.sum
+            proto/go.sum
 
       - name: Test auth-service
         run: |
