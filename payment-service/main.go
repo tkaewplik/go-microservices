@@ -2,17 +2,22 @@ package main
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
+	"google.golang.org/grpc"
+
+	paymentgrpc "github.com/tkaewplik/go-microservices/payment-service/internal/grpc"
 	"github.com/tkaewplik/go-microservices/payment-service/internal/handler"
 	"github.com/tkaewplik/go-microservices/payment-service/internal/kafka"
 	"github.com/tkaewplik/go-microservices/payment-service/internal/repository"
 	"github.com/tkaewplik/go-microservices/payment-service/internal/service"
 	"github.com/tkaewplik/go-microservices/pkg/database"
 	"github.com/tkaewplik/go-microservices/pkg/middleware"
+	pb "github.com/tkaewplik/go-microservices/proto/payment"
 )
 
 func main() {
@@ -62,27 +67,51 @@ func main() {
 	// Initialize layers
 	txRepo := repository.NewPostgresTransactionRepository(db)
 	paymentService := service.NewPaymentService(txRepo, publisher)
-	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
 
-	// Setup middleware
+	// Start gRPC server
+	grpcPort := getEnv("GRPC_PORT", "50052")
+	go func() {
+		lis, err := net.Listen("tcp", ":"+grpcPort)
+		if err != nil {
+			logger.Error("failed to listen for gRPC", "error", err, "port", grpcPort)
+			os.Exit(1)
+		}
+
+		grpcServer := grpc.NewServer()
+		paymentGRPCServer := paymentgrpc.NewPaymentServer(paymentService)
+		pb.RegisterPaymentServiceServer(grpcServer, paymentGRPCServer)
+
+		logger.Info("gRPC server starting", "port", grpcPort)
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Error("gRPC server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// HTTP server (for backwards compatibility)
+	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
 	secretKey := getEnv("JWT_SECRET", "your-secret-key")
 	authMiddleware := middleware.NewAuthMiddleware(secretKey)
 
-	// Setup routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/transactions", authMiddleware.Authenticate(paymentHandler.CreateTransaction))
 	mux.HandleFunc("/transactions/list", authMiddleware.Authenticate(paymentHandler.GetTransactions))
 	mux.HandleFunc("/transactions/pay", authMiddleware.Authenticate(paymentHandler.PayAllTransactions))
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
 
-	// Start server
+	// Start HTTP server
 	port := getEnv("PORT", "8082")
-	logger.Info("payment service starting",
+	logger.Info("HTTP server starting",
 		"port", port,
+		"grpc_port", grpcPort,
 		"kafka_brokers", kafkaBrokers,
-		"kafka_topic", kafkaTopic,
 	)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		logger.Error("server failed", "error", err)
+		logger.Error("HTTP server failed", "error", err)
 		os.Exit(1)
 	}
 }

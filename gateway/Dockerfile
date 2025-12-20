@@ -5,13 +5,14 @@ WORKDIR /app
 
 # Copy pkg module first (needed for replace directive)
 COPY pkg/ ./pkg/
+COPY proto/ ./proto/
 
 # Copy service code
 COPY gateway/ ./gateway/
 
 # Build from the service directory
 WORKDIR /app/gateway
-RUN go mod download
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o /gateway ./*.go
 
 # Runtime stage

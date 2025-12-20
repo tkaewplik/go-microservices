@@ -43,4 +43,29 @@ test:
 	cd payment-service && go test ./... -v
 	cd gateway && go test ./... -v
 	cd analytics-service && go test ./... -v
-	
+
+# Proto generation
+.PHONY: proto-gen proto-gen-auth proto-gen-payment proto-install
+
+# Install protoc plugins (run once)
+proto-install:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Generate all proto files
+proto-gen: proto-gen-auth proto-gen-payment
+	@echo "Proto generation complete"
+
+# Generate auth service proto
+proto-gen-auth:
+	PATH=$$PATH:$$(go env GOPATH)/bin protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/auth/auth.proto
+
+# Generate payment service proto
+proto-gen-payment:
+	PATH=$$PATH:$$(go env GOPATH)/bin protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/payment/payment.proto

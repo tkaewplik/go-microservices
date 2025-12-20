@@ -2,14 +2,19 @@ package main
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 
+	"google.golang.org/grpc"
+
+	authgrpc "github.com/tkaewplik/go-microservices/auth-service/internal/grpc"
 	"github.com/tkaewplik/go-microservices/auth-service/internal/handler"
 	"github.com/tkaewplik/go-microservices/auth-service/internal/repository"
 	"github.com/tkaewplik/go-microservices/auth-service/internal/service"
 	"github.com/tkaewplik/go-microservices/pkg/database"
+	pb "github.com/tkaewplik/go-microservices/proto/auth"
 )
 
 func main() {
@@ -44,18 +49,43 @@ func main() {
 	userRepo := repository.NewPostgresUserRepository(db)
 	secretKey := getEnv("JWT_SECRET", "your-secret-key")
 	authService := service.NewAuthService(userRepo, secretKey)
-	authHandler := handler.NewAuthHandler(authService, logger)
 
-	// Setup routes
+	// Start gRPC server
+	grpcPort := getEnv("GRPC_PORT", "50051")
+	go func() {
+		lis, err := net.Listen("tcp", ":"+grpcPort)
+		if err != nil {
+			logger.Error("failed to listen for gRPC", "error", err, "port", grpcPort)
+			os.Exit(1)
+		}
+
+		grpcServer := grpc.NewServer()
+		authGRPCServer := authgrpc.NewAuthServer(authService, secretKey)
+		pb.RegisterAuthServiceServer(grpcServer, authGRPCServer)
+
+		logger.Info("gRPC server starting", "port", grpcPort)
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Error("gRPC server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// HTTP server (for backwards compatibility and health checks)
+	authHandler := handler.NewAuthHandler(authService, logger)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", authHandler.Register)
 	mux.HandleFunc("/login", authHandler.Login)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
 
-	// Start server
+	// Start HTTP server
 	port := getEnv("PORT", "8081")
-	logger.Info("auth service starting", "port", port)
+	logger.Info("HTTP server starting", "port", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		logger.Error("server failed", "error", err)
+		logger.Error("HTTP server failed", "error", err)
 		os.Exit(1)
 	}
 }

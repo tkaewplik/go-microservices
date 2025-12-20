@@ -41,7 +41,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ userId, token, refres
         throw new Error(data.error || 'Failed to fetch transactions');
       }
 
-      setTransactions(data);
+      setTransactions(data.transactions);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -97,8 +97,8 @@ const TransactionList: React.FC<TransactionListProps> = ({ userId, token, refres
       </div>
 
       {unpaidCount > 0 && (
-        <button 
-          onClick={handlePayAll} 
+        <button
+          onClick={handlePayAll}
           className="btn btn-secondary"
           disabled={paying}
         >
@@ -115,8 +115,8 @@ const TransactionList: React.FC<TransactionListProps> = ({ userId, token, refres
       ) : (
         <div style={{ marginTop: '20px' }}>
           {transactions.map((transaction) => (
-            <div 
-              key={transaction.id} 
+            <div
+              key={transaction.id}
               className={`transaction-item ${transaction.is_paid ? 'paid' : ''}`}
             >
               <p className="amount">${transaction.amount.toFixed(2)}</p>
