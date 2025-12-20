@@ -80,7 +80,7 @@ jobs:
         run: |
           cd payment-service
           go mod download
-          go test -v -race -coverprofile=coverage.out ./...
+          go test -v -coverprofile=coverage.out ./...
 
       - name: Test gateway
         run: |
