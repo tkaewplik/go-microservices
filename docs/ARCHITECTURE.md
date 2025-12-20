@@ -29,7 +29,6 @@ graph TB
 
     subgraph "Message Brokers"
         KF[📨 Kafka KRaft<br/>Port 9092]
-        RMQ[🐰 RabbitMQ<br/>Port 5672]
     end
 
     CS --> GW
